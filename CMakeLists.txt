@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.28.0)
 
-set(PICO_PLATFORM rp2350)
-set(PICOTOOL_FORCE_FETCH_FROM_GIT 1)
-
 include(external/pico-sdk/pico_sdk_init.cmake)
 
 project(ENTER)
@@ -23,7 +20,6 @@ target_link_libraries(ENTER
     pico_stdlib
     tinyusb_device
     tinyusb_board
-    pico_unique_id
 )
 
 pico_enable_stdio_usb(ENTER 1)

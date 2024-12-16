@@ -1,11 +1,7 @@
-//--------------------------------------------------------------------+
-// Includes
-//--------------------------------------------------------------------+
-
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
 
+#include <hardware/gpio.h>
 #include <bsp/board_api.h>
 #include <tusb.h>
 
@@ -13,6 +9,16 @@
 
 void hid_task();
 static void send_enter();
+
+static uint32_t last_debounce_time = 0;
+static uint32_t repeat_start_time = 0;
+
+#define DEBOUNCE_DELAY 50    // 50ms debounce delay
+#define REPEAT_DELAY 500     // 200ms before repeating starts
+#define REPEAT_INTERVAL 10   // 20ms interval for holding the button
+#define BOARD_BUTTON_PIN 9   // Button is on pin 0
+
+bool button_pressed = false;
 
 //--------------------------------------------------------------------+
 // Main Entry
@@ -25,14 +31,40 @@ int main()
     if (board_init_after_tusb)
         board_init_after_tusb();
 
+    gpio_set_dir(BOARD_BUTTON_PIN, GPIO_IN);
+
     while (1)
     {
         tud_task();
         hid_task();
 
-        if (tud_mounted())
+        // Read the button state
+        bool current_state = gpio_get(BOARD_BUTTON_PIN);
+
+        // Handle debounce and initial press
+        if (current_state && !button_pressed)
         {
-            send_enter();
+            if ((board_millis() - last_debounce_time) > DEBOUNCE_DELAY)
+            {
+                send_enter(); // Send Enter for the initial press
+                button_pressed = true; // Mark as pressed
+                repeat_start_time = board_millis(); // Start repeat timer
+                last_debounce_time = board_millis();
+            }
+        }
+        else if (!current_state)
+        {
+            button_pressed = false; // Reset button state when released
+        }
+
+        // Handle repeat sending while the button is held
+        if (button_pressed && (board_millis() - repeat_start_time) > REPEAT_DELAY)
+        {
+            if ((board_millis() - last_debounce_time) > REPEAT_INTERVAL)
+            {
+                send_enter(); // Send Enter repeatedly
+                last_debounce_time = board_millis();
+            }
         }
     }
 }
@@ -41,16 +73,9 @@ int main()
 // Device callbacks
 //--------------------------------------------------------------------+
 
-// Invoked when device is mounted
 void tud_mount_cb(void) {}
-
-// Invoked when device is unmounted
 void tud_umount_cb(void) {}
-
-// Invoked when usb bus is suspended
 void tud_suspend_cb(bool remote_wakeup_en) { (void) remote_wakeup_en; }
-
-// Invoked when usb bus is resumed
 void tud_resume_cb(void) {}
 
 //--------------------------------------------------------------------+
@@ -65,79 +90,61 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
 
 static void send_enter(void)
 {
-  // skip if HID is not ready yet
-  if (!tud_hid_ready()) return;
+    if (!tud_hid_ready()) return;
 
-  uint8_t keycode[6] = { 0 };
+    uint8_t keycode[6] = { 0 };
 
-  // Get the current character's HID keycode
-  keycode[0] = HID_KEY_ENTER;
-  tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+    keycode[0] = HID_KEY_ENTER;
+    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
 
-  // Release the key after a short delay
-  board_delay(10);
-  tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+    board_delay(10); // Short delay to simulate a key press
+    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // Release key
 }
 
-// Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
-// tud_hid_report_complete_cb() is used to send the next report after previous one is complete
 void hid_task(void)
 {
-  // Poll every 10ms
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
+    const uint32_t interval_ms = 10;
+    static uint32_t start_ms = 0;
 
-  if (board_millis() - start_ms < interval_ms) return; // not enough time
-  start_ms += interval_ms;
+    if (board_millis() - start_ms < interval_ms) return;
+    start_ms += interval_ms;
 
-  uint32_t const btn = board_button_read();
+    uint32_t const btn = board_button_read();
 
-  // Remote wakeup
-  if ( tud_suspended() && btn )
-  {
-    // Wake up host if we are in suspend mode
-    // and REMOTE_WAKEUP feature is enabled by host
-    tud_remote_wakeup();
-  }else
-  {
-    // Send the 1st of report chain, the rest will be sent by tud_hid_report_complete_cb()
-    send_hid_report(REPORT_ID_KEYBOARD, btn);
-  }
+    if (tud_suspended() && btn)
+    {
+        tud_remote_wakeup();
+    }
+    else
+    {
+        send_hid_report(REPORT_ID_KEYBOARD, btn);
+    }
 }
 
-// Invoked when sent REPORT successfully to host
-// Application can use this to send the next report
-// Note: For composite reports, report[0] is report ID
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len)
 {
-  (void) instance;
-  (void) len;
+    (void) instance;
+    (void) len;
 
-  uint8_t next_report_id = report[0] + 1u;
+    uint8_t next_report_id = report[0] + 1u;
 
-  if (next_report_id < REPORT_ID_COUNT)
-  {
-    send_hid_report(next_report_id, board_button_read());
-  }
+    if (next_report_id < REPORT_ID_COUNT)
+    {
+        send_hid_report(next_report_id, board_button_read());
+    }
 }
 
-// Invoked when received GET_REPORT control request
-// Application must fill buffer report's content and return its length.
-// Return zero will cause the stack to STALL request
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-  // TODO not Implemented
-  (void) instance;
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) reqlen;
+    (void) instance;
+    (void) report_id;
+    (void) report_type;
+    (void) buffer;
+    (void) reqlen;
 
-  return 0;
+    return 0;
 }
 
-// Invoked when received SET_REPORT control request or
-// received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
     (void) instance;
