@@ -13,10 +13,10 @@ static void send_enter();
 static uint32_t last_debounce_time = 0;
 static uint32_t repeat_start_time = 0;
 
-#define DEBOUNCE_DELAY 50    // 50ms debounce delay
-#define REPEAT_DELAY 500     // 200ms before repeating starts
-#define REPEAT_INTERVAL 10   // 20ms interval for holding the button
-#define BOARD_BUTTON_PIN 9   // Button is on pin 0
+#define DEBOUNCE_DELAY 100    // 50ms debounce delay
+#define REPEAT_DELAY 600     // 200ms before repeating starts
+#define REPEAT_INTERVAL 30   // 20ms interval for holding the button
+#define BOARD_BUTTON_PIN 0   // Button is on pin 0
 
 bool button_pressed = false;
 
