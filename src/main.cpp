@@ -13,10 +13,11 @@ static void send_enter();
 static uint32_t last_debounce_time = 0;
 static uint32_t repeat_start_time = 0;
 
-#define DEBOUNCE_DELAY 100    // 50ms debounce delay
-#define REPEAT_DELAY 600     // 200ms before repeating starts
-#define REPEAT_INTERVAL 30   // 20ms interval for holding the button
-#define BOARD_BUTTON_PIN 0   // Button is on pin 0
+#define DEBOUNCE_DELAY 300    // 50ms debounce delay
+#define REPEAT_DELAY 600      // 200ms before repeating starts
+#define REPEAT_INTERVAL 30    // 20ms interval for holding the button
+#define BOARD_BUTTON_PIN 16   // Button is on pin 16
+#define BOARD_POWER_PIN 15    // Power is on pin 15
 
 bool button_pressed = false;
 
@@ -32,6 +33,10 @@ int main()
         board_init_after_tusb();
 
     gpio_set_dir(BOARD_BUTTON_PIN, GPIO_IN);
+
+    gpio_init(BOARD_POWER_PIN);
+    gpio_set_dir(BOARD_POWER_PIN, GPIO_OUT);
+    gpio_put(BOARD_POWER_PIN, 1);
 
     while (1)
     {

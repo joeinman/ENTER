@@ -187,7 +187,7 @@ enum {
 char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "Joe Inman",                   // 1: Manufacturer
+  "Joe Inman & James Davie",     // 1: Manufacturer
   "ENTER Keyboard",              // 2: Product
   NULL,                          // 3: Serials will use unique ID if possible
 };
